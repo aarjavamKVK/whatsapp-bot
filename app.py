@@ -111,5 +111,9 @@ def ask_for_order_id(to):
         body="🔍 Please enter your Order ID or Registered Number to check status."
     )
 
+print("Sender:", sender)
+print("Cleaned Number:", phone_number)
+print("Zoho Response:", result)
+
 # if __name__ == "__main__":
 #     app.run(port=8000, debug=True)
