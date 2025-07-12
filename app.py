@@ -43,6 +43,10 @@ def whatsapp_webhook():
     contact_info = get_contact_by_phone(cleaned_number, ZOHO_ACCESS_TOKEN, ZOHO_ORGANIZATION_ID)
     logging.info(f"Zoho Contact Lookup Result: {contact_info}")
 
+    print("Sender:", sender)
+    print("Cleaned Number:", cleaned_number)
+    print("Zoho Response:", contact_info)
+    
     # Respond based on payload
     if button_payload == "new_cust":
         send_new_customer_flow(sender)
@@ -111,9 +115,6 @@ def ask_for_order_id(to):
         body="🔍 Please enter your Order ID or Registered Number to check status."
     )
 
-print("Sender:", sender)
-print("Cleaned Number:", phone_number)
-print("Zoho Response:", result)
 
 # if __name__ == "__main__":
 #     app.run(port=8000, debug=True)
