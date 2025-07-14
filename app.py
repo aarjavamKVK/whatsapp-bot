@@ -23,6 +23,9 @@ client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
 @app.route("/webhook", methods=["POST"])
 def whatsapp_webhook():
+    # Log entire form payload for debugging
+    print("Full Payload:", request.form)
+
     button_payload = request.form.get("ButtonPayload")
     sender = request.form.get("From")
 
@@ -32,30 +35,41 @@ def whatsapp_webhook():
     cleaned_number = sender.replace("whatsapp:+91", "") if sender and sender.startswith("whatsapp:+91") else sender
     logging.info(f"Cleaned phone number: {cleaned_number}")
 
+    # Connect to Google Sheet and check if number exists in Sheet2 column D
     try:
-        # Connect to Google Sheets
         gc = gspread.service_account(filename="/etc/secrets/credentials.json")
         sh = gc.open("WhatsappBotUsers")
+        worksheet_main = sh.sheet1
+        worksheet_main.append_row([cleaned_number])  # Log incoming number to Sheet1
 
-        # Append to Sheet1 (log number)
-        sheet1 = sh.sheet1
-        sheet1.append_row([cleaned_number])
-        logging.info("Saved number to Sheet1")
-
-        # Check Sheet2 column D for existing number
-        sheet2 = sh.get_worksheet(1)  # Sheet2 (index 1)
-        column_d = sheet2.col_values(4)[1:]  # Skip header in D1
-        column_d = [num.strip() for num in column_d if num.strip()]
-
-        if cleaned_number in column_d:
-            logging.info("Number exists in Sheet2 → sending existing customer menu")
-            send_existing_customer_menu(sender)
-        else:
-            logging.info("Number not in Sheet2 → sending welcome template")
-            send_welcome_template(sender)
+        worksheet_db = sh.worksheet("Sheet2")
+        db_numbers = worksheet_db.col_values(4)[1:]  # Column D, skipping header
+        logging.info("Fetched database numbers from Sheet2")
 
     except Exception as e:
         logging.error(f"Google Sheets error: {e}")
+        db_numbers = []
+
+    # Lookup in Zoho (optional)
+    contact_info = get_contact_by_phone(cleaned_number, ZOHO_ACCESS_TOKEN, ZOHO_ORGANIZATION_ID)
+    logging.info(f"Zoho Contact Lookup Result: {contact_info}")
+
+    print("Sender:", sender)
+    print("Cleaned Number:", cleaned_number)
+    print("Zoho Response:", contact_info)
+
+    # Respond based on database match or payload
+    if cleaned_number in db_numbers:
+        send_existing_customer_menu(sender)
+    elif button_payload == "new_cust":
+        send_new_customer_flow(sender)
+    elif button_payload == "place_order":
+        send_product_list(sender)
+    elif button_payload == "check_order":
+        ask_for_order_id(sender)
+    elif button_payload == "contact_support":
+        send_support_message(sender)
+    else:
         send_welcome_template(sender)
 
     return "OK", 200
@@ -103,7 +117,7 @@ def send_product_list(to):
     client.messages.create(
         from_=FROM_WHATSAPP_NUMBER,
         to=to,
-        body="🍭️ Our Products:\n• Paper Cups\n• Plates\n• Napkins\n• Party Packs\n\nReply with the product name to order."
+        body="🍭 Our Products:\n• Paper Cups\n• Plates\n• Napkins\n• Party Packs\n\nReply with the product name to order."
     )
 
 def ask_for_order_id(to):
@@ -113,6 +127,13 @@ def ask_for_order_id(to):
         body="🔍 Please enter your Order ID or Registered Number to check status."
     )
 
-# Uncomment for local testing
+def send_support_message(to):
+    client.messages.create(
+        from_=FROM_WHATSAPP_NUMBER,
+        to=to,
+        body="📞 Our support team will contact you shortly. You may also call us directly at +91-XXXXXXXXXX."
+    )
+
+# Optional for local testing
 # if __name__ == "__main__":
 #     app.run(port=8000, debug=True)
