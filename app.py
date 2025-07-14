@@ -4,7 +4,6 @@ import os
 import requests
 import logging
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 
 app = Flask(__name__)
 
@@ -22,12 +21,6 @@ ZOHO_ORGANIZATION_ID = os.environ.get("ZOHO_ORGANIZATION_ID")
 
 client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
-# Google Sheets setup
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("/etc/secrets/credentials.json", scope)
-sheet_client = gspread.authorize(creds)
-sheet = sheet_client.open("WhatsappBotUsers").sheet1  # Change sheet name as needed
-
 @app.route("/webhook", methods=["POST"])
 def whatsapp_webhook():
     button_payload = request.form.get("ButtonPayload")
@@ -39,32 +32,30 @@ def whatsapp_webhook():
     cleaned_number = sender.replace("whatsapp:+91", "") if sender and sender.startswith("whatsapp:+91") else sender
     logging.info(f"Cleaned phone number: {cleaned_number}")
 
-    # Save number to Google Sheet
-    if cleaned_number:
-        try:
-            sheet.append_row([cleaned_number])
-            logging.info("Saved number to Google Sheet")
-        except Exception as e:
-            logging.error(f"Google Sheets error: {e}")
+    try:
+        # Connect to Google Sheets
+        gc = gspread.service_account(filename="/etc/secrets/credentials.json")
+        sh = gc.open("WhatsappBotUsers")
 
-    # Lookup in Zoho
-    contact_info = get_contact_by_phone(cleaned_number, ZOHO_ACCESS_TOKEN, ZOHO_ORGANIZATION_ID)
-    logging.info(f"Zoho Contact Lookup Result: {contact_info}")
+        # Append to Sheet1 (log number)
+        sheet1 = sh.sheet1
+        sheet1.append_row([cleaned_number])
+        logging.info("Saved number to Sheet1")
 
-    print("Sender:", sender)
-    print("Cleaned Number:", cleaned_number)
-    print("Zoho Response:", contact_info)
+        # Check Sheet2 column D for existing number
+        sheet2 = sh.get_worksheet(1)  # Sheet2 (index 1)
+        column_d = sheet2.col_values(4)[1:]  # Skip header in D1
+        column_d = [num.strip() for num in column_d if num.strip()]
 
-    # Respond based on payload
-    if button_payload == "new_cust":
-        send_new_customer_flow(sender)
-    elif button_payload == "existing_cust":
-        send_existing_customer_menu(sender)
-    elif button_payload == "place_order":
-        send_product_list(sender)
-    elif button_payload == "check_order":
-        ask_for_order_id(sender)
-    else:
+        if cleaned_number in column_d:
+            logging.info("Number exists in Sheet2 → sending existing customer menu")
+            send_existing_customer_menu(sender)
+        else:
+            logging.info("Number not in Sheet2 → sending welcome template")
+            send_welcome_template(sender)
+
+    except Exception as e:
+        logging.error(f"Google Sheets error: {e}")
         send_welcome_template(sender)
 
     return "OK", 200
@@ -112,7 +103,7 @@ def send_product_list(to):
     client.messages.create(
         from_=FROM_WHATSAPP_NUMBER,
         to=to,
-        body="🛍️ Our Products:\n• Paper Cups\n• Plates\n• Napkins\n• Party Packs\n\nReply with the product name to order."
+        body="🍭️ Our Products:\n• Paper Cups\n• Plates\n• Napkins\n• Party Packs\n\nReply with the product name to order."
     )
 
 def ask_for_order_id(to):
@@ -122,6 +113,6 @@ def ask_for_order_id(to):
         body="🔍 Please enter your Order ID or Registered Number to check status."
     )
 
-# Optional for local testing
+# Uncomment for local testing
 # if __name__ == "__main__":
 #     app.run(port=8000, debug=True)
