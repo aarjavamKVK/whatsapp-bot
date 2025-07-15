@@ -153,6 +153,6 @@ def send_catalogue_pdf(to):
         to=to,
         body=(
             "📄 *Here's our Product Catalogue:*\n\n"
-            "https://www.canva.com/design/DAGA-qWSGWQ/iOPAUG5ny7cLGNkUukTdkA/"
+            "https://www.canva.com/design/DAGA-qWSGWQ/iOPAUG5ny7cLGNkUukTdkA/view?utm_content=DAGA-qWSGWQ&utm_campaign=designshare&utm_medium=link&utm_source=editor#31"
         )
     )
