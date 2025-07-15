@@ -102,7 +102,7 @@ def send_welcome_template(to):
 def send_new_customer_flow(to):
     client.messages.create(
         from_=FROM_WHATSAPP_NUMBER,
-        to=to,
+        to=to,      
         content_sid="HX1f2d86142ede8d5dcd03c810cb7ced08"
     )
 
