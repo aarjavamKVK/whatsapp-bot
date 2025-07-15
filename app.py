@@ -42,6 +42,7 @@ def whatsapp_webhook():
         worksheet_main.append_row([cleaned_number])  # Log incoming number to Sheet1
 
         worksheet_db = sh.worksheet("Sheet2")
+        worksheet_db.append_row(["", "", "", cleaned_number])
         db_numbers = worksheet_db.col_values(4)[1:]  # Column D, skipping header
         logging.info("Fetched database numbers from Sheet2")
     except Exception as e:
