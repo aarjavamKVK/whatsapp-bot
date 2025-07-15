@@ -62,20 +62,21 @@ def whatsapp_webhook():
             send_product_list(sender)
         elif button_payload == "check_order":
             ask_for_order_id(sender)
+        elif button_payload == "contact_support":
+            send_support_message(sender)
         elif button_payload == "product_catalogue":
             send_catalogue_pdf(sender)
         elif button_payload == "new_cust_interested":
             send_new_customer_flow(sender)
- 
-        elif button_payload == "contact_support":
-            send_support_message(sender)
         else:
             send_existing_customer_menu(sender)
+    elif button_payload == "new_cust_interested":
+        send_new_customer_flow(sender)
+    elif button_payload == "product_catalogue":
+        send_catalogue_pdf(sender)
     else:
-        if button_payload == "new_cust":
-            send_welcome_template(sender)
-        else:
-            send_welcome_template(sender)
+        send_welcome_template(sender)
+
 
     return "OK", 200
 
