@@ -23,7 +23,6 @@ client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
 @app.route("/webhook", methods=["POST"])
 def whatsapp_webhook():
-    # Log entire form payload for debugging
     print("Full Payload:", request.form)
 
     button_payload = request.form.get("ButtonPayload")
@@ -35,22 +34,24 @@ def whatsapp_webhook():
     cleaned_number = sender.replace("whatsapp:+91", "") if sender and sender.startswith("whatsapp:+91") else sender
     logging.info(f"Cleaned phone number: {cleaned_number}")
 
-    # Connect to Google Sheet and check if number exists in Sheet2 column D
+    # Connect to Google Sheets
     try:
         gc = gspread.service_account(filename="/etc/secrets/credentials.json")
         sh = gc.open("WhatsappBotUsers")
+
+        # Log user in Sheet1
         worksheet_main = sh.sheet1
-        worksheet_main.append_row([cleaned_number])  # Log incoming number to Sheet1
+        worksheet_main.append_row([cleaned_number])
 
+        # Check if number exists in Sheet2 Column D
         worksheet_db = sh.worksheet("Sheet2")
-        db_numbers = worksheet_db.col_values(4)[1:]  # Column D, skipping header
-        logging.info("Fetched database numbers from Sheet2")
-
+        db_numbers = worksheet_db.col_values(4)[1:]  # Skip header
+        logging.info("Fetched numbers from Sheet2")
     except Exception as e:
         logging.error(f"Google Sheets error: {e}")
         db_numbers = []
 
-    # Lookup in Zoho (optional)
+    # Optional Zoho Lookup
     contact_info = get_contact_by_phone(cleaned_number, ZOHO_ACCESS_TOKEN, ZOHO_ORGANIZATION_ID)
     logging.info(f"Zoho Contact Lookup Result: {contact_info}")
 
@@ -58,19 +59,25 @@ def whatsapp_webhook():
     print("Cleaned Number:", cleaned_number)
     print("Zoho Response:", contact_info)
 
-    # Respond based on database match or payload
-    if cleaned_number in db_numbers:
-        send_existing_customer_menu(sender)
-    elif button_payload == "new_cust":
-        send_new_customer_flow(sender)
-    elif button_payload == "place_order":
-        send_product_list(sender)
-    elif button_payload == "check_order":
-        ask_for_order_id(sender)
-    elif button_payload == "contact_support":
-        send_support_message(sender)
+    # === Final Response Logic ===
+    if button_payload:
+        if button_payload == "place_order":
+            send_product_list(sender)
+        elif button_payload == "check_order":
+            ask_for_order_id(sender)
+        elif button_payload == "contact_support":
+            send_support_message(sender)
+        elif button_payload == "new_cust":
+            send_new_customer_flow(sender)
+        elif button_payload == "existing_cust":
+            send_existing_customer_menu(sender)
+        else:
+            send_welcome_template(sender)
     else:
-        send_welcome_template(sender)
+        if cleaned_number in db_numbers:
+            send_existing_customer_menu(sender)
+        else:
+            send_welcome_template(sender)
 
     return "OK", 200
 
@@ -102,7 +109,7 @@ def send_welcome_template(to):
 def send_new_customer_flow(to):
     client.messages.create(
         from_=FROM_WHATSAPP_NUMBER,
-        to=to,      
+        to=to,
         content_sid="HX1f2d86142ede8d5dcd03c810cb7ced08"
     )
 
