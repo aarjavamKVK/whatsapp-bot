@@ -32,41 +32,50 @@ def whatsapp_webhook():
     cleaned_number = sender.replace("whatsapp:+91", "") if sender and sender.startswith("whatsapp:+91") else sender
     logging.info(f"Incoming from: {cleaned_number}, Payload: {button_payload}, Message: {incoming_msg}")
 
+    # Google Sheets: log to Sheet1 & check Sheet2
     try:
         gc = gspread.service_account(filename="/etc/secrets/credentials.json")
         sh = gc.open("WhatsappBotUsers")
         worksheet_main = sh.sheet1
-        worksheet_main.append_row([cleaned_number])  # Log all numbers in Sheet1
+        worksheet_main.append_row([cleaned_number])
 
         worksheet_db = sh.worksheet("Sheet2")
-        db_numbers = worksheet_db.col_values(4)[1:]  # Column D
+        db_numbers = worksheet_db.col_values(4)[1:]  # Column D, skip header
     except Exception as e:
         logging.error(f"Google Sheets Error: {e}")
         db_numbers = []
 
+    # Optional: Zoho contact lookup
     contact_info = get_contact_by_phone(cleaned_number, ZOHO_ACCESS_TOKEN, ZOHO_ORGANIZATION_ID)
 
-    # ===== FINAL BOT FLOW LOGIC =====
-    if cleaned_number in db_numbers:
-        # Existing customer — only respond if they say "hi"
-        if incoming_msg == "hi":
-            send_existing_customer_menu(sender)
-        else:
-            logging.info("Existing user message ignored unless 'hi'")
-    else:
-        # New customer flow
-        if button_payload == "new_cust":
+    # ===== Logic Flow =====
+    if button_payload:
+        if button_payload == "place_order":
+            send_product_list(sender)
+        elif button_payload == "check_order":
+            ask_for_order_id(sender)
+        elif button_payload == "contact_support":
+            send_support_message(sender)
+        elif button_payload == "product_catalogue":
+            send_catalogue_pdf(sender)
+        elif button_payload == "new_cust":
             send_new_customer_flow(sender)
             try:
                 if cleaned_number not in db_numbers:
-                    worksheet_db.append_row(["", "", "", cleaned_number])  # Add to Sheet2 (col D)
-                    logging.info("Added new customer to Sheet2")
+                    worksheet_db.append_row(["", "", "", cleaned_number])
+                    logging.info("Added new number to Sheet2")
             except Exception as e:
-                logging.error(f"Error saving to Sheet2: {e}")
-        elif button_payload == "product_catalogue":
-            send_catalogue_pdf(sender)
+                logging.error(f"Failed to append to Sheet2: {e}")
         else:
             send_welcome_template(sender)
+
+    elif incoming_msg == "hi":
+        if cleaned_number in db_numbers:
+            send_existing_customer_menu(sender)
+        else:
+            send_welcome_template(sender)
+    else:
+        logging.info("Message ignored: not 'hi' or valid button")
 
     return "OK", 200
 
@@ -81,7 +90,7 @@ def get_contact_by_phone(phone_number, access_token, organization_id):
         logging.error(f"Error calling Zoho API: {e}")
         return {}
 
-# === WhatsApp Message Handlers ===
+# === Message Handlers ===
 
 def send_welcome_template(to):
     client.messages.create(
@@ -104,14 +113,24 @@ def send_existing_customer_menu(to):
         content_sid="HXca0c40309b0fc113ceab8462e07aebe0"
     )
 
-def send_catalogue_pdf(to):
+def send_product_list(to):
+    product_message = (
+        "🛍️ *Our Product Categories:*\n\n"
+        "*Fabric Products:*\n"
+        "• BOPP Laminated Bags\n"
+        "• PP Woven Bags\n"
+        "   - Cement | Sugar | Fertilizer Bags\n"
+        "• Leno Bags & Rolls\n"
+        "• FIBC | Yarn\n\n"
+        "*Paper Products:*\n"
+        "• Paper Bags, Cups, Boxes, Trays\n\n"
+        "*Agro & Signage:*\n"
+        "• Irrigation Pipe, Mulch Film, Flex, ACP Sheets\n"
+    )
     client.messages.create(
         from_=FROM_WHATSAPP_NUMBER,
         to=to,
-        body=(
-            "📄 *Here's our Product Catalogue:*\n\n"
-            "https://www.canva.com/design/DAGA-qWSGWQ/iOPAUG5ny7cLGNkUukTdkA/"
-        )
+        body=product_message
     )
 
 def ask_for_order_id(to):
@@ -128,4 +147,12 @@ def send_support_message(to):
         body="📞 Our support team will contact you shortly. You may also call us directly at +91-XXXXXXXXXX."
     )
 
-# === End ===
+def send_catalogue_pdf(to):
+    client.messages.create(
+        from_=FROM_WHATSAPP_NUMBER,
+        to=to,
+        body=(
+            "📄 *Here's our Product Catalogue:*\n\n"
+            "https://www.canva.com/design/DAGA-qWSGWQ/iOPAUG5ny7cLGNkUukTdkA/"
+        )
+    )
