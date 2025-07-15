@@ -10,12 +10,12 @@ app = Flask(__name__)
 # Setup logging
 logging.basicConfig(filename='user_log.txt', level=logging.INFO, format='%(asctime)s - %(message)s')
 
-# Twilio credentials from Render Environment Variables
+# Twilio credentials
 TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
 FROM_WHATSAPP_NUMBER = "whatsapp:+919113287086"
 
-# Zoho credentials from Render Environment Variables
+# Zoho credentials
 ZOHO_ACCESS_TOKEN = os.environ.get("ZOHO_ACCESS_TOKEN")
 ZOHO_ORGANIZATION_ID = os.environ.get("ZOHO_ORGANIZATION_ID")
 
@@ -26,75 +26,54 @@ def whatsapp_webhook():
     print("Full Payload:", request.form)
 
     button_payload = request.form.get("ButtonPayload")
+    incoming_msg = request.form.get("Body", "").strip().lower()
     sender = request.form.get("From")
 
-    logging.info(f"Incoming message from: {sender}, Payload: {button_payload}")
-
-    # Extract and clean phone number
     cleaned_number = sender.replace("whatsapp:+91", "") if sender and sender.startswith("whatsapp:+91") else sender
-    logging.info(f"Cleaned phone number: {cleaned_number}")
+    logging.info(f"Incoming from: {cleaned_number}, Payload: {button_payload}, Message: {incoming_msg}")
 
-    # Connect to Google Sheet and check if number exists in Sheet2 column D
     try:
         gc = gspread.service_account(filename="/etc/secrets/credentials.json")
         sh = gc.open("WhatsappBotUsers")
         worksheet_main = sh.sheet1
-        worksheet_main.append_row([cleaned_number])  # Log incoming number to Sheet1
+        worksheet_main.append_row([cleaned_number])  # Log all numbers in Sheet1
 
         worksheet_db = sh.worksheet("Sheet2")
-        db_numbers = worksheet_db.col_values(4)[1:]  # Column D, skipping header
-        logging.info("Fetched database numbers from Sheet2")
+        db_numbers = worksheet_db.col_values(4)[1:]  # Column D
     except Exception as e:
-        logging.error(f"Google Sheets error: {e}")
+        logging.error(f"Google Sheets Error: {e}")
         db_numbers = []
 
-    # Lookup in Zoho (optional)
     contact_info = get_contact_by_phone(cleaned_number, ZOHO_ACCESS_TOKEN, ZOHO_ORGANIZATION_ID)
-    logging.info(f"Zoho Contact Lookup Result: {contact_info}")
 
-    print("Sender:", sender)
-    print("Cleaned Number:", cleaned_number)
-    print("Zoho Response:", contact_info)
-
-    # === Updated Flow ===
+    # ===== FINAL BOT FLOW LOGIC =====
     if cleaned_number in db_numbers:
-        if button_payload == "place_order":
-            send_catalogue_pdf(sender)
-        elif button_payload == "check_order":
-            ask_for_order_id(sender)
-        elif button_payload == "contact_support":
-            send_support_message(sender)
+        # Existing customer — only respond if they say "hi"
+        if incoming_msg == "hi":
+            send_existing_customer_menu(sender)
+        else:
+            logging.info("Existing user message ignored unless 'hi'")
+    else:
+        # New customer flow
+        if button_payload == "new_cust":
+            send_new_customer_flow(sender)
+            try:
+                if cleaned_number not in db_numbers:
+                    worksheet_db.append_row(["", "", "", cleaned_number])  # Add to Sheet2 (col D)
+                    logging.info("Added new customer to Sheet2")
+            except Exception as e:
+                logging.error(f"Error saving to Sheet2: {e}")
         elif button_payload == "product_catalogue":
             send_catalogue_pdf(sender)
-        elif button_payload == "new_cust":
-            send_new_customer_flow(sender)
         else:
-            send_existing_customer_menu(sender)
-    elif button_payload == "new_cust":
-        send_new_customer_flow(sender)
-        try:
-            worksheet_db.append_row(["", "", "", cleaned_number])  # Add to Sheet2 Column D
-            logging.info("Saved new customer to Sheet2")
-        except Exception as e:
-            logging.error(f"Error adding to Sheet2: {e}")
-
-    elif button_payload == "product_catalogue":
-        send_catalogue_pdf(sender)
-    else:
-        send_welcome_template(sender)
-
+            send_welcome_template(sender)
 
     return "OK", 200
 
 def get_contact_by_phone(phone_number, access_token, organization_id):
     url = f"https://www.zohoapis.in/books/v3/contacts"
-    headers = {
-        "Authorization": f"Zoho-oauthtoken {access_token}"
-    }
-    params = {
-        "phone": phone_number,
-        "organization_id": organization_id
-    }
+    headers = { "Authorization": f"Zoho-oauthtoken {access_token}" }
+    params = { "phone": phone_number, "organization_id": organization_id }
     try:
         response = requests.get(url, headers=headers, params=params)
         return response.json()
@@ -102,19 +81,19 @@ def get_contact_by_phone(phone_number, access_token, organization_id):
         logging.error(f"Error calling Zoho API: {e}")
         return {}
 
-# === Templates ===
+# === WhatsApp Message Handlers ===
 
 def send_welcome_template(to):
     client.messages.create(
         from_=FROM_WHATSAPP_NUMBER,
         to=to,
-        content_sid="HX157e72799d3feb8a8a3533f0a4c0c9db"  # new template SID
+        content_sid="HX157e72799d3feb8a8a3533f0a4c0c9db"
     )
 
 def send_new_customer_flow(to):
     client.messages.create(
         from_=FROM_WHATSAPP_NUMBER,
-        to=to,      
+        to=to,
         content_sid="HX1f2d86142ede8d5dcd03c810cb7ced08"
     )
 
@@ -125,53 +104,14 @@ def send_existing_customer_menu(to):
         content_sid="HXca0c40309b0fc113ceab8462e07aebe0"
     )
 
-def send_product_list(to):
-    product_message = (
-        "🛍️ *Our Product Categories:*\n\n"
-        "*Fabric Products:*\n"
-        "• BOPP Laminated Bags\n"
-        "• PP Woven Bags\n"
-        "   - PP Woven Cement Bags\n"
-        "   - PP Woven Sugar Bags\n"
-        "   - PP Woven Chemical | Fertiliser Bags\n"
-        "• Leno | Mesh Bags\n"
-        "• PP Woven Rolls\n"
-        "• Leno Fabric\n"
-        "• PP Woven Handle Bags\n"
-        "• FIBC Bags\n"
-        "• Multifilament Yarn\n\n"
-
-        "*Paper Products:*\n"
-        "• Paper Bags\n"
-        "• Paper Cups\n"
-        "• Paper Food Boxes\n"
-        "• Paper Food Containers\n"
-        "• Burger Boxes\n"
-        "• Cake Boxes\n"
-        "• Boat Trays\n\n"
-
-        "*Agricultural Products:*\n"
-        "• Drip Irrigation Pipe, Level Tube, Braided Hose, And Suction Hose\n"
-        "• Layflat Tube\n"
-        "• Mulch Film\n"
-        "• Pond Liner\n"
-        "• Shade Net\n"
-        "• Tapes\n"
-        "• Tarpaulin\n\n"
-
-        "*Flex and Sign Boards:*\n"
-        "• Backlit Flex Banner\n"
-        "• PVC Foam Board\n"
-        "• Aluminium Composite Panel\n\n"
-
-        "*Raw Materials*"
-    
-    )
-
+def send_catalogue_pdf(to):
     client.messages.create(
         from_=FROM_WHATSAPP_NUMBER,
         to=to,
-        body=product_message
+        body=(
+            "📄 *Here's our Product Catalogue:*\n\n"
+            "https://www.canva.com/design/DAGA-qWSGWQ/iOPAUG5ny7cLGNkUukTdkA/"
+        )
     )
 
 def ask_for_order_id(to):
@@ -188,19 +128,4 @@ def send_support_message(to):
         body="📞 Our support team will contact you shortly. You may also call us directly at +91-XXXXXXXXXX."
     )
 
-def send_catalogue_pdf(to):
-    client.messages.create(
-        from_=FROM_WHATSAPP_NUMBER,
-        to=to,
-        body=(
-            "📄 *Here's our Product Catalogue:*\n\n"
-            "https://www.canva.com/design/DAGA-qWSGWQ/iOPAUG5ny7cLGNkUukTdkA/"
-            "view?utm_content=DAGA-qWSGWQ&utm_campaign=designshare&utm_medium=link&utm_source=editor"
-        )
-    )
-
-
-# Optional for local testing
-# if __name__ == "__main__":
-#     app.run(port=8000, debug=True)
-
+# === End ===
