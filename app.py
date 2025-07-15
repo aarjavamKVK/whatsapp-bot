@@ -34,24 +34,21 @@ def whatsapp_webhook():
     cleaned_number = sender.replace("whatsapp:+91", "") if sender and sender.startswith("whatsapp:+91") else sender
     logging.info(f"Cleaned phone number: {cleaned_number}")
 
-    # Connect to Google Sheets
+    # Connect to Google Sheet and check if number exists in Sheet2 column D
     try:
         gc = gspread.service_account(filename="/etc/secrets/credentials.json")
         sh = gc.open("WhatsappBotUsers")
-
-        # Log user in Sheet1
         worksheet_main = sh.sheet1
-        worksheet_main.append_row([cleaned_number])
+        worksheet_main.append_row([cleaned_number])  # Log incoming number to Sheet1
 
-        # Check if number exists in Sheet2 Column D
         worksheet_db = sh.worksheet("Sheet2")
-        db_numbers = worksheet_db.col_values(4)[1:]  # Skip header
-        logging.info("Fetched numbers from Sheet2")
+        db_numbers = worksheet_db.col_values(4)[1:]  # Column D, skipping header
+        logging.info("Fetched database numbers from Sheet2")
     except Exception as e:
         logging.error(f"Google Sheets error: {e}")
         db_numbers = []
 
-    # Optional Zoho Lookup
+    # Lookup in Zoho (optional)
     contact_info = get_contact_by_phone(cleaned_number, ZOHO_ACCESS_TOKEN, ZOHO_ORGANIZATION_ID)
     logging.info(f"Zoho Contact Lookup Result: {contact_info}")
 
@@ -59,23 +56,19 @@ def whatsapp_webhook():
     print("Cleaned Number:", cleaned_number)
     print("Zoho Response:", contact_info)
 
-    # === Final Response Logic ===
-    if button_payload:
+    # === Updated Flow ===
+    if cleaned_number in db_numbers:
         if button_payload == "place_order":
             send_product_list(sender)
         elif button_payload == "check_order":
             ask_for_order_id(sender)
         elif button_payload == "contact_support":
             send_support_message(sender)
-        elif button_payload == "new_cust":
-            send_new_customer_flow(sender)
-        elif button_payload == "existing_cust":
-            send_existing_customer_menu(sender)
         else:
-            send_welcome_template(sender)
-    else:
-        if cleaned_number in db_numbers:
             send_existing_customer_menu(sender)
+    else:
+        if button_payload == "new_cust":
+            send_new_customer_flow(sender)
         else:
             send_welcome_template(sender)
 
@@ -109,7 +102,7 @@ def send_welcome_template(to):
 def send_new_customer_flow(to):
     client.messages.create(
         from_=FROM_WHATSAPP_NUMBER,
-        to=to,
+        to=to,      
         content_sid="HX1f2d86142ede8d5dcd03c810cb7ced08"
     )
 
@@ -121,10 +114,51 @@ def send_existing_customer_menu(to):
     )
 
 def send_product_list(to):
+    product_message = (
+        "🛍️ *Our Product Categories:*\n\n"
+        "*Fabric Products:*\n"
+        • BOPP Laminated Bags\n"
+        • PP Woven Bags\n"
+        "   - PP Woven Cement Bags\n"
+        "   - PP Woven Sugar Bags\n"
+        "   - PP Woven Chemical | Fertiliser Bags\n"
+        • Leno | Mesh Bags\n"
+        • PP Woven Rolls\n"
+        • Leno Fabric\n"
+        • PP Woven Handle Bags\n"
+        • FIBC Bags\n"
+        • Multifilament Yarn\n\n"
+
+        "*Paper Products:*\n"
+        • Paper Bags\n"
+        • Paper Cups\n"
+        • Paper Food Boxes\n"
+        • Paper Food Containers\n"
+        • Burger Boxes\n"
+        • Cake Boxes\n"
+        • Boat Trays\n\n"
+
+        "*Agricultural Products:*\n"
+        • Drip Irrigation Pipe, Level Tube, Braided Hose, And Suction Hose\n"
+        • Layflat Tube\n"
+        • Mulch Film\n"
+        • Pond Liner\n"
+        • Shade Net\n"
+        • Tapes\n"
+        • Tarpaulin\n\n"
+
+        "*Flex and Sign Boards:*\n"
+        • Backlit Flex Banner\n"
+        • PVC Foam Board\n"
+        • Aluminium Composite Panel\n\n"
+
+        "*Raw Materials*"
+    )
+
     client.messages.create(
         from_=FROM_WHATSAPP_NUMBER,
         to=to,
-        body="🍭 Our Products:\n• Paper Cups\n• Plates\n• Napkins\n• Party Packs\n\nReply with the product name to order."
+        body=product_message
     )
 
 def ask_for_order_id(to):
@@ -144,3 +178,4 @@ def send_support_message(to):
 # Optional for local testing
 # if __name__ == "__main__":
 #     app.run(port=8000, debug=True)
+
