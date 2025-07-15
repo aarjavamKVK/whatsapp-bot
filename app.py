@@ -66,11 +66,11 @@ def whatsapp_webhook():
             send_support_message(sender)
         elif button_payload == "product_catalogue":
             send_catalogue_pdf(sender)
-        elif button_payload == "new_cust_interested":
+        elif button_payload == "new_cust":
             send_new_customer_flow(sender)
         else:
             send_existing_customer_menu(sender)
-    elif button_payload == "new_cust_interested":
+    elif button_payload == "new_cust":
         send_new_customer_flow(sender)
     elif button_payload == "product_catalogue":
         send_catalogue_pdf(sender)
