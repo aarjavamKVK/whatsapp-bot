@@ -69,7 +69,7 @@ def whatsapp_webhook():
         else:
             send_welcome_template(sender)
 
-    elif incoming_msg == "hi" or "HI" or "Hi":
+    elif incoming_msg == "hi":
         if cleaned_number in db_numbers:
             send_existing_customer_menu(sender)
         else:
