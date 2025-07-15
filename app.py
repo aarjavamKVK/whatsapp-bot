@@ -73,6 +73,12 @@ def whatsapp_webhook():
             send_existing_customer_menu(sender)
     elif button_payload == "new_cust":
         send_new_customer_flow(sender)
+        try:
+            worksheet_db.append_row(["", "", "", cleaned_number])  # Add to Sheet2 Column D
+            logging.info("Saved new customer to Sheet2")
+        except Exception as e:
+            logging.error(f"Error adding to Sheet2: {e}")
+            
     elif button_payload == "product_catalogue":
         send_catalogue_pdf(sender)
     else:
