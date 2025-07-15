@@ -62,13 +62,18 @@ def whatsapp_webhook():
             send_product_list(sender)
         elif button_payload == "check_order":
             ask_for_order_id(sender)
+        elif button_payload == "product_catalogue":
+            send_catalogue_pdf(sender)
+        elif button_payload == "new_cust_interested":
+            send_new_customer_flow(sender)
+ 
         elif button_payload == "contact_support":
             send_support_message(sender)
         else:
             send_existing_customer_menu(sender)
     else:
         if button_payload == "new_cust":
-            send_new_customer_flow(sender)
+            send_welcome_template(sender)
         else:
             send_welcome_template(sender)
 
@@ -96,7 +101,7 @@ def send_welcome_template(to):
     client.messages.create(
         from_=FROM_WHATSAPP_NUMBER,
         to=to,
-        content_sid="HX6a4c2a1dafe3d744f4d42bacd1ce5204"
+        content_sid="HX157e72799d3feb8a8a3533f0a4c0c9db"  # new template SID
     )
 
 def send_new_customer_flow(to):
@@ -175,6 +180,18 @@ def send_support_message(to):
         to=to,
         body="📞 Our support team will contact you shortly. You may also call us directly at +91-XXXXXXXXXX."
     )
+
+def send_catalogue_pdf(to):
+    client.messages.create(
+        from_=FROM_WHATSAPP_NUMBER,
+        to=to,
+        body=(
+            "📄 *Here's our Product Catalogue:*\n\n"
+            "https://www.canva.com/design/DAGA-qWSGWQ/iOPAUG5ny7cLGNkUukTdkA/"
+            "view?utm_content=DAGA-qWSGWQ&utm_campaign=designshare&utm_medium=link&utm_source=editor"
+        )
+    )
+
 
 # Optional for local testing
 # if __name__ == "__main__":
