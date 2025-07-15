@@ -51,7 +51,7 @@ def whatsapp_webhook():
     # ===== Logic Flow =====
     if button_payload:
         if button_payload == "place_order":
-            send_product_list(sender)
+            send_catalogue_pdf(sender)
         elif button_payload == "check_order":
             ask_for_order_id(sender)
         elif button_payload == "contact_support":
@@ -69,7 +69,7 @@ def whatsapp_webhook():
         else:
             send_welcome_template(sender)
 
-    elif incoming_msg == "hi":
+    elif incoming_msg == "hi" or "HI" or "Hi":
         if cleaned_number in db_numbers:
             send_existing_customer_menu(sender)
         else:
