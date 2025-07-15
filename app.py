@@ -59,7 +59,7 @@ def whatsapp_webhook():
     # === Updated Flow ===
     if cleaned_number in db_numbers:
         if button_payload == "place_order":
-            send_product_list(sender)
+            send_catalogue_pdf(sender)
         elif button_payload == "check_order":
             ask_for_order_id(sender)
         elif button_payload == "contact_support":
